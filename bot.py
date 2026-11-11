@@ -91,7 +91,13 @@ BİÇİM (Discord markdown)
 - Ana bölümler (orijinalde [Köşeli Parantez] içindekiler) için ayrı satırda: "## <emoji> Bölüm adı"
   Emoji önerileri: ⚔️ İçerik ve Sistemler, 🎉 Etkinlik, 🛒 Promosyon/Mağaza, 🔧 İyileştirmeler ve Düzeltmeler,
   🎁 Telafi/Geri Yükleme, 📢 diğerleri.
-- Alt bölümler (Sanctuary, Expedition, Abyss gibi kısa başlık satırları) için: "### Alt bölüm adı"
+- Alt bölümler (kısa başlık satırları) için: "### Alt bölüm adı"
+  Oyundaki içerik adı olan başlıkları İngilizce bırak (Sanctuary, Expedition, Abyss, ürün/skin adları).
+  Genel başlıkları Türkçeye çevir (ör. Consumable Items → Tüketilebilir Eşyalar, Weekly Content Reward
+  Adjustments → Haftalık İçerik Ödülleri, New Skins → Yeni Skinler, Helm and Decor → Kask ve Aksesuarlar,
+  Improvements → İyileştirmeler, Fixes → Düzeltmeler).
+- Tablolarda bir hücre birden fazla satırı kapsıyorsa (ör. "Sunucu başına bir kez" sınırı bir kategorideki
+  tüm ürünler için geçerliyse) bu bilgiyi ilgili her ürüne yaz; hiçbir üründen düşürme.
 - İçerik satırlarını madde yap: "- madde". Bir maddeye bağlı detaylar için iki boşluk girintili "  - alt madde".
   Hangi satırın hangisinin detayı olduğunu anlama göre çıkar (ör. "X düzenlenecek." satırından sonra gelen
   değişiklikler onun alt maddeleridir).
@@ -220,6 +226,9 @@ class _Simplifier(HTMLParser):
         self.in_cell = False
         self.row: list[str] = []
         self.cell: list[str] = []
+        self.cell_rowspan = 1
+        self.table_depth = 0
+        self.carry: dict[int, list] = {}   # rowspan ile alt satırlara taşan hücreler: sütun -> [metin, kalan]
 
     def _emit(self, text: str) -> None:
         if self.in_cell:
@@ -237,11 +246,20 @@ class _Simplifier(HTMLParser):
             self._emit("\n")
         elif tag == "li":
             self._emit("\n- ")
+        elif tag == "table":
+            self.table_depth += 1
+            self.carry = {}
+            self._emit("\n")
         elif tag == "tr":
             self.row = []
         elif tag in ("td", "th"):
+            self._fill_carry()
             self.in_cell = True
             self.cell = []
+            try:
+                self.cell_rowspan = max(1, int(dict(attrs).get("rowspan") or 1))
+            except ValueError:
+                self.cell_rowspan = 1
         elif tag in ("b", "strong"):
             self._emit("**")
         elif tag == "img":
@@ -262,10 +280,16 @@ class _Simplifier(HTMLParser):
             return
         if tag in ("td", "th"):
             text = re.sub(r"\s+", " ", "".join(self.cell)).strip()
+            if self.cell_rowspan > 1:
+                self.carry[len(self.row)] = [text, self.cell_rowspan - 1]
             self.row.append(text)
             self.in_cell = False
             self.cell = []
+        elif tag == "table":
+            self.table_depth = max(0, self.table_depth - 1)
+            self._emit("\n")
         elif tag == "tr":
+            self._fill_carry(to_end=True)
             cells = [c for c in self.row]
             if any(cells):
                 self.out.append("\n| " + " | ".join(cells) + " |")
@@ -273,9 +297,28 @@ class _Simplifier(HTMLParser):
         elif tag in self.BLOCK or tag == "li":
             self._emit("\n")
 
+    def _fill_carry(self, to_end: bool = False) -> None:
+        """Üst satırdan rowspan ile taşan hücreleri bu satırın ilgili sütunlarına kopyalar."""
+        while True:
+            col = len(self.row)
+            entry = self.carry.get(col)
+            if entry is None:
+                if to_end and any(c > col for c in self.carry):
+                    col_next = min(c for c in self.carry if c > col)
+                    # aradaki boş sütunlar (beklenmez) -> boş hücre
+                    self.row.extend([""] * (col_next - col))
+                    continue
+                return
+            self.row.append(entry[0])
+            entry[1] -= 1
+            if entry[1] <= 0:
+                del self.carry[col]
+
     def handle_data(self, data):
         if self.skip_depth:
             return
+        if self.table_depth and not self.in_cell and not data.strip():
+            return  # tablo satırları arasındaki boşlukları atla
         self._emit(data)
 
     def text(self) -> str:
