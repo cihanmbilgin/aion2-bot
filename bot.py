@@ -69,20 +69,53 @@ EMBED_TITLE_LIMIT = 256
 CHUNK_TARGET = 3900       # Biraz pay bırakarak bölme hedefi
 
 SYSTEM_PROMPT = """Sen AION 2 (NCSoft MMORPG) duyurularını Türkçeye çeviren bir çevirmensin.
-Çevirin bir Discord kanalında Türk oyunculara paylaşılacak.
+Çevirin bir Discord kanalında Türk oyunculara paylaşılacak; kolay okunur ve düzenli olmalı.
 
-Kurallar:
-- Tüm metni eksiksiz ve doğru biçimde Türkçeye çevir. Hiçbir sayı, tarih, saat, yüzde, eşya, ödül veya maddeyi atlama, özetleme ya da ekleme yapma.
-- Oyun içi özel adları İngilizce bırak: eşya, skill, zindan, boss, bölge, sınıf, etkinlik ve para birimi adları (ör. Abyssal Forge: Ludra, Substance Morph, Kina (Bound), Gear Change Voucher, Ranger, Expedition, Abyss Point). Türk oyuncular bunları oyunda İngilizce görüyor.
-- "Bound" gibi eşya etiketlerini çevirme.
-- Tarih ve saatlerde CET/PST verildiyse aynen koru; yanına Türkiye saatini ekleme.
-- Çıktıyı Discord markdown'u ile biçimlendir:
-  - Bölüm başlıkları için **kalın** metin kullan (başlık için # kullanma).
-  - Maddeler için "- " kullan, alt maddeler için iki boşluk girintili "  - ".
-  - Discord tablo desteklemez: Tabloları "- Sütun1: değer · Sütun2: değer" gibi madde listesine çevir.
-  - Kod bloğu, HTML veya görsel ekleme.
-- Duyuruda olmayan hiçbir yorum, açıklama, giriş veya kapanış cümlesi yazma. Sadece çeviriyi ver.
-- Çıktının en başına çevrilmiş başlığı yazma; başlık ayrıca gösterilecek."""
+ÇEVİRİ KURALLARI
+- Oyun içeriğini (değişiklikler, ödüller, etkinlikler, düzeltmeler) eksiksiz çevir. Hiçbir sayı, tarih, saat,
+  yüzde, eşya, ödül veya maddeyi atlama ve duyuruda olmayan bilgi ekleme.
+- Oyun içi özel adları İngilizce bırak: eşya, skill, zindan, boss, bölge, sınıf, etkinlik, menü ve para birimi
+  adları (ör. Abyssal Forge: Ludra, Substance Morph, Kina (Bound), Gear Change Voucher, Ranger, Expedition,
+  Abyss Point, Shop, Closet). "Bound" gibi eşya etiketlerini çevirme.
+- Tarih ve saatlerde CET/PST verildiyse aynen koru.
+- Doğal, kısa Türkçe kullan. "... olacak / ... edilecek" gibi gelecek zamanları koru.
+
+MAĞAZA / PROMOSYON BÖLÜMLERİ (skin, pet, kanat vb. satış duyuruları)
+- Her ürünü tek satırda ver: "- Ürün adı: fiyat (Mileage) · içerik kısaca · satın alma sınırı".
+- Satış dönemini ve menü yolunu ürün grubu başında bir kez yaz.
+- Tekrar eden "Takas / Silme / Depolama / Özelleştirme: X / X / X / O" tablolarını tek bir satıra özetle
+  (ör. "- Takas, silme ve depolama yapılamaz; özelleştirilebilir.").
+- "Fiyatlar Purple Store bazlıdır..." uyarısını bölüm sonunda yalnızca bir kez yaz.
+
+BİÇİM (Discord markdown)
+- Ana bölümler (orijinalde [Köşeli Parantez] içindekiler) için ayrı satırda: "## <emoji> Bölüm adı"
+  Emoji önerileri: ⚔️ İçerik ve Sistemler, 🎉 Etkinlik, 🛒 Promosyon/Mağaza, 🔧 İyileştirmeler ve Düzeltmeler,
+  🎁 Telafi/Geri Yükleme, 📢 diğerleri.
+- Alt bölümler (Sanctuary, Expedition, Abyss gibi kısa başlık satırları) için: "### Alt bölüm adı"
+- İçerik satırlarını madde yap: "- madde". Bir maddeye bağlı detaylar için iki boşluk girintili "  - alt madde".
+  Hangi satırın hangisinin detayı olduğunu anlama göre çıkar (ör. "X düzenlenecek." satırından sonra gelen
+  değişiklikler onun alt maddeleridir).
+- Önemli sayıları ve değişimleri **kalın** yap (ör. **1 saat → 2 saat**, **%30 → %100**).
+- Tablolar: Discord tablo göstermez. Her satırı "- Sütun1 · Sütun2 · Sütun3" biçiminde madde yap.
+- Bölümler arasında bir boş satır bırak. Kod bloğu, HTML veya görsel ekleme.
+- Selamlama ve kapanışı tek kısa satır olarak koru (ör. "Merhaba Daeva'lar, bu haftanın güncellemesi:").
+- Çıktının başına başlığı tekrar yazma; başlık ayrıca gösterilecek. Yorum veya açıklama ekleme.
+
+ÖRNEK BİÇİM
+Merhaba Daeva'lar, bu haftanın güncellemesi:
+
+## ⚔️ İçerik ve Sistemler
+
+### Sanctuary
+- Abyssal Forge: Ludra (Normal) düzenlenecek:
+  - Süre sınırı **1 saat → 2 saat**.
+  - Reward Group 5 düşme oranı **%30 → %100**.
+
+## 🛒 Promosyon
+### Night Cat Claw Weapon Skin
+Satış: 11 Kasım bakım sonrası – 25 Kasım bakım öncesi · Menü: Shop → Atelier → Weapon/Wings/Pet
+- Night Cat Claw (Skin: Bow): **$11.99** (1.750 Mileage) · sadece Ranger
+- Takas, silme ve depolama yapılamaz; özelleştirilebilir."""
 
 
 # --------------------------------------------------------------------------- #
@@ -209,6 +242,8 @@ class _Simplifier(HTMLParser):
         elif tag in ("td", "th"):
             self.in_cell = True
             self.cell = []
+        elif tag in ("b", "strong"):
+            self._emit("**")
         elif tag == "img":
             alt = dict(attrs).get("alt")
             if alt:
@@ -221,6 +256,9 @@ class _Simplifier(HTMLParser):
             self.skip_depth = max(0, self.skip_depth - 1)
             return
         if self.skip_depth:
+            return
+        if tag in ("b", "strong"):
+            self._emit("**")
             return
         if tag in ("td", "th"):
             text = re.sub(r"\s+", " ", "".join(self.cell)).strip()
@@ -242,7 +280,8 @@ class _Simplifier(HTMLParser):
 
     def text(self) -> str:
         raw = "".join(self.out)
-        raw = raw.replace("​", "").replace("\xa0", " ")
+        raw = raw.replace("\u200b", "").replace("\xa0", " ")
+        raw = re.sub(r"\*\*([ \t]*)\*\*", r"\1", raw)  # boş kalın işaretlerini temizle
         lines = [re.sub(r"[ \t]+", " ", ln).strip() for ln in raw.split("\n")]
         cleaned: list[str] = []
         for ln in lines:
@@ -375,10 +414,16 @@ def _translate_claude(user_msg: str) -> str:
 
 
 def _split_title(text: str, fallback_title: str) -> tuple[str, str]:
-    m = re.match(r"\s*BAŞLIK:\s*(.+?)\s*\n-{3,}\s*\n(.*)", text, flags=re.S)
-    if m:
-        return m.group(1).strip(), m.group(2).strip()
-    return fallback_title, text.strip()
+    m = re.match(r"\s*\**BAŞLIK:\**\s*(.+?)\s*\n-{3,}\s*\n(.*)", text, flags=re.S)
+    title, body = (m.group(1), m.group(2)) if m else (fallback_title, text)
+    return clean_title(title), body.strip()
+
+
+def clean_title(title: str) -> str:
+    """Baştaki [Notice] / [Duyuru] gibi etiketleri ve markdown işaretlerini atar."""
+    title = re.sub(r"[*_`#]", "", title).strip()
+    title = re.sub(r"^(\s*\[[^\]]{1,20}\]\s*)+", "", title).strip()
+    return title or "Duyuru"
 
 
 # --------------------------------------------------------------------------- #
@@ -386,28 +431,73 @@ def _split_title(text: str, fallback_title: str) -> tuple[str, str]:
 # --------------------------------------------------------------------------- #
 
 def split_for_discord(text: str, limit: int = CHUNK_TARGET) -> list[str]:
-    """Metni satır sınırlarından bölerek her parçayı limitin altında tutar."""
+    """Metni Discord embed'lerine böler.
+
+    Önce bölüm başlıklarından (## / ###), sonra boş satırlardan, en son tek satırlardan böler.
+    Böylece bir başlık ile altındaki maddeler mümkün olduğunca aynı mesajda kalır.
+    """
+    blocks = _split_blocks(text)
     chunks: list[str] = []
     current = ""
+    for block in blocks:
+        for piece in _fit(block, limit):
+            candidate = f"{current}\n\n{piece}" if current else piece
+            if len(candidate) <= limit:
+                current = candidate
+            else:
+                if current:
+                    chunks.append(current)
+                current = piece
+    if current.strip():
+        chunks.append(current)
+    return [c.strip() for c in chunks if c.strip()]
+
+
+def _split_blocks(text: str) -> list[str]:
+    """Başlık satırlarından önce ve boş satırlarda blok sınırı koyar."""
+    blocks, cur = [], []
     for line in text.split("\n"):
-        # Tek satır bile sınırı aşıyorsa kelime kelime böl
+        if line.strip() == "" or re.match(r"^#{1,3} ", line):
+            if any(l.strip() for l in cur):
+                blocks.append("\n".join(cur).strip("\n"))
+            cur = [] if line.strip() == "" else [line]
+        else:
+            cur.append(line)
+    if any(l.strip() for l in cur):
+        blocks.append("\n".join(cur).strip("\n"))
+    # Başlık + hemen arkasındaki blok ayrılmasın diye başlığı sonraki bloğa yapıştır
+    merged: list[str] = []
+    for blk in blocks:
+        if merged and re.fullmatch(r"#{1,3} .+", merged[-1]):
+            merged[-1] = merged[-1] + "\n" + blk
+        else:
+            merged.append(blk)
+    return merged
+
+
+def _fit(block: str, limit: int) -> list[str]:
+    """Tek bir blok sınırı aşıyorsa satırlardan (gerekirse kelimelerden) böler."""
+    if len(block) <= limit:
+        return [block]
+    out, cur = [], ""
+    for line in block.split("\n"):
         while len(line) > limit:
             cut = line.rfind(" ", 0, limit)
             cut = cut if cut > 0 else limit
-            piece, line = line[:cut], line[cut:].lstrip()
-            if current:
-                chunks.append(current.rstrip())
-                current = ""
-            chunks.append(piece)
-        candidate = f"{current}\n{line}" if current else line
+            if cur:
+                out.append(cur)
+                cur = ""
+            out.append(line[:cut])
+            line = line[cut:].lstrip()
+        candidate = f"{cur}\n{line}" if cur else line
         if len(candidate) > limit:
-            chunks.append(current.rstrip())
-            current = line
+            out.append(cur)
+            cur = line
         else:
-            current = candidate
-    if current.strip():
-        chunks.append(current.rstrip())
-    return [c for c in chunks if c.strip()]
+            cur = candidate
+    if cur:
+        out.append(cur)
+    return out
 
 
 def post_to_discord(article: dict, tr_title: str, tr_body: str) -> None:
