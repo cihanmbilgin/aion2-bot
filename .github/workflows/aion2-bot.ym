@@ -1,0 +1,63 @@
+name: AION 2 Türkçe Duyuru Botu
+
+on:
+  schedule:
+    # Her 15 dakikada bir (UTC). GitHub zamanlanmış görevleri yoğunlukta birkaç dakika gecikebilir.
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      test_article:
+        description: "Test için tek post gönder (ör. update_en:6af42a1affaccc00c265785f). Boş bırak = normal çalışma"
+        required: false
+        default: ""
+      dry_run:
+        description: "Discord'a gönderme, çeviriyi sadece log'a yaz"
+        type: boolean
+        default: false
+
+# Aynı anda iki çalışma olmasın (aynı postu iki kez göndermeyi önler)
+concurrency:
+  group: aion2-bot
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # state.json'u repoya geri kaydetmek için
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Botu çalıştır
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GEMINI_MODELS: ${{ vars.GEMINI_MODELS }}
+          # İleride Claude'a geçmek istersen: TRANSLATOR değişkenini "claude" yap, ANTHROPIC_API_KEY secret'ını ekle
+          TRANSLATOR: ${{ vars.TRANSLATOR }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL }}
+          BOARDS: ${{ vars.BOARDS }}
+          POST_ON_FIRST_RUN: ${{ vars.POST_ON_FIRST_RUN }}
+          TEST_ARTICLE: ${{ github.event.inputs.test_article }}
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
+        run: python bot.py
+
+      - name: state.json'u kaydet
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain state.json)" ]; then
+            git config user.name "aion2-bot"
+            git config user.email "aion2-bot@users.noreply.github.com"
+            git add state.json
+            git commit -m "Görülen postlar güncellendi"
+            git push
+          else
+            echo "state.json değişmedi."
+          fi
